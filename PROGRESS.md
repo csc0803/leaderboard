@@ -3,7 +3,7 @@
 最後更新：2026-09-11
 
 ## 目前狀態
-Phase 0～1 已完成。backend 骨架（Spring Boot + Maven，含 Data JPA / Spring Data Redis 依賴）已建立，`db/01-init.sql` 定義好 `leaderboarddb` / `post` table，`docker-compose.yml` 可用 `docker compose up -d` 啟動 MySQL + Redis 容器（皆 healthy），backend 用 `local`（本機 MySQL80）與 `docker`（容器化 MySQL + Redis）兩種 profile 都實測啟動成功、連線正常。接下來進入 Phase 2（後端資料層：`Post` entity / repository）。
+Phase 0～2 已完成。backend 骨架（Spring Boot + Maven，含 Data JPA / Spring Data Redis 依賴）已建立，`db/01-init.sql` 定義好 `leaderboarddb` / `post` table，`docker-compose.yml` 可用 `docker compose up -d` 啟動 MySQL + Redis 容器（皆 healthy）。`Post` entity 與 `PostRepository` 已建立，`local`/`docker` 兩種 profile 都實測啟動成功，Hibernate `validate` 確認 entity 與 `post` table schema 一致。接下來進入 Phase 3（後端 API 層，含 Redis 整合，本專案重點）。
 
 ## 專案結構（規劃）
 ```
@@ -37,11 +37,11 @@ leaderboard/
 - [x] 建立 `docker-compose.yml`（MySQL + Redis 服務）。過程中修正：一開始誤把 Phase 11 才要做的 `backend`/`frontend` 服務也寫進去（`backend/` 當時沒有 Dockerfile、`frontend/` 目錄根本不存在，會導致 `docker compose up` 失敗），已改回只留 `mysql` + `redis` 兩個服務
 - [x] 本地端連線測試：`docker compose up -d` 啟動 `leaderboard-mysql`（healthy）、`leaderboard-redis` 兩個容器，backend 用 `docker` profile 啟動成功，port 8080 正常監聽，MySQL/Redis 皆連線無誤
 
-## Phase 2：後端資料層
-- [ ] 建立 `Post` entity（id, title, content, likeCount, createdAt, updatedAt）
-- [ ] 建立 `PostRepository`（extends JpaRepository）
-- [ ] 設定 `spring.jpa.hibernate.ddl-auto=validate`（比照 Todo List，schema 以 SQL script 為準）
-- [ ] 驗證資料表對應正確
+## Phase 2：後端資料層（已完成）
+- [x] 建立 `Post` entity（id, title, content, likeCount, createdAt, updatedAt）：`com.chun.backend.entity.Post`，風格比照 Todo List 的 `Todo` entity（Lombok `@Getter @Setter`、`@PrePersist`/`@PreUpdate` 補預設值）。`@PrePersist` 目前無條件把 `likeCount` 設為 0（不像 Todo 的 `completed` 會先檢查是否已有值），視為刻意設計：新貼文的讚數一律從 0 開始，不開放呼叫端指定
+- [x] 建立 `PostRepository`（extends JpaRepository）：`JpaRepository<Post, Long>`，泛型順序正確
+- [x] 設定 `spring.jpa.hibernate.ddl-auto=validate`（Phase 1 已設定，沿用）
+- [x] 驗證資料表對應正確：`docker` profile 實際啟動一次（`mvn spring-boot:run`），`Found 1 JPA repository interface`，Hibernate 初始化無 `SchemaManagementException`，確認 `Post` entity 與既有 `post` table 完全對應
 
 ## Phase 3：後端 API 層（含 Redis 整合，本專案重點）
 - [ ] 建立 `PostService`：`getAllPosts` / `getPostById` / `createPost` / `likePost` / `getLeaderboard`
@@ -115,7 +115,7 @@ leaderboard/
 ---
 
 ## 下一步（建議立即執行）
-- [ ] 進入 Phase 2：建立 `Post` entity（id, title, content, likeCount, createdAt, updatedAt）與 `PostRepository`
+- [ ] 進入 Phase 3：`PostService`（`likePost` 等）與 Redis `RedisTemplate` 整合，`PostController` API 端點
 
 ## 備註
 - 讚數的權威來源與同步策略（Redis vs MySQL）在 Phase 3 動手實作時需明確定案，並記錄取捨原因。
