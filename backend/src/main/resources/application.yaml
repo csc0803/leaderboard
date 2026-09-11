@@ -1,0 +1,14 @@
+spring:
+  application:
+    name: backend
+  datasource:
+    url: jdbc:mysql://localhost:3306/leaderboarddb?useUnicode=true&characterEncoding=utf8&serverTimezone=GMT%2B8
+    username: leaderboard
+    driver-class-name: com.mysql.cj.jdbc.Driver
+  jpa:
+    hibernate:
+      ddl-auto: validate
+  data:
+    redis:
+      host: localhost
+      port: 6379

@@ -1,0 +1,40 @@
+# --- Environment / secrets ---
+.env
+.env.local
+.env.*.local
+application-local.yaml
+application-local.yml
+
+# --- Java / Maven (backend) ---
+target/
+!.mvn/wrapper/maven-wrapper.jar
+*.class
+
+# --- Node / Vite (frontend) ---
+node_modules/
+dist/
+dist-ssr/
+.vite/
+*.local
+
+# --- IDE ---
+.idea/
+*.iws
+*.iml
+*.ipr
+.vscode/
+*.code-workspace
+
+# --- OS ---
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# --- Logs ---
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# --- Docker ---
+docker-compose.override.yml
