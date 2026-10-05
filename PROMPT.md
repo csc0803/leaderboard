@@ -22,7 +22,7 @@
 ## 預設假設（尚未經使用者明確確認，如有不同想法可隨時調整）
 | 項目 | 預設決策 | 說明 |
 |---|---|---|
-| 資料權責分工 | MySQL 存 `Post`（id, title, content, likeCount, createdAt）當 source of truth；Redis Sorted Set（`post:likes`，member=postId, score=讚數）當即時排行榜索引 | 讚數遞增用 Redis `ZINCRBY` 做原子操作，避免直接對 MySQL 欄位 `UPDATE ... SET count = count + 1` 的併發問題；MySQL 端的 `likeCount` 欄位做備援/可查詢用，同步策略（每次寫入同步 vs. 非同步批次）留到動手時再定案 |
+| 資料權責分工 | MySQL 存 `Post`（id, title, content, likeCount, createdAt）當 source of truth；Redis Sorted Set（`post:likes`，member=postId, score=讚數）當即時排行榜索引 | **已定案（2026-10-02）：同步寫入**。按讚在同一個 `@Transactional` 內先 `UPDATE post SET like_count = like_count + 1`（更新 0 筆 → 404），再 `ZINCRBY post:likes 1 <id>`；Redis 失敗則整筆 rollback（代價：Redis 掛掉時無法按讚）。新增貼文時 `ZADD post:likes 0 <id>`。排行榜用 `ZREVRANGE` 取 id 後 `findAllById` 補詳情並依 Redis 順序排列；同分時依 member 字典序，暫不處理。用 Redis 的理由是排行榜讀取不必每次 `ORDER BY`（註：原本寫的「避免 `count = count + 1` 併發問題」不成立——單一 `UPDATE ... + 1` 在 MySQL 本身就是原子的，會出問題的是讀出來、Java 加 1、再存回去）。非同步批次寫回列為之後的比較練習 |
 | 重複按讚防護 | 第一版不做（無登入，無法可靠識別使用者，同一人可重複按讚）；列為 Phase 12 stretch goal |
 | 排行榜查詢 | `GET /api/posts/leaderboard?limit=10`，用 Redis `ZREVRANGE` / `ZREVRANGEBYSCORE` 取前 N 名 |
 | Redis 資料持久化 | 開發環境先不特別設定；列一條 stretch/備註：正式環境需開 Redis AOF，或提供「從 MySQL rebuild zset」的還原機制 |

@@ -1,9 +1,13 @@
 # 專案進度 (PROGRESS)
 
-最後更新：2026-09-11
+最後更新：2026-10-05
 
 ## 目前狀態
 Phase 0～2 已完成。backend 骨架（Spring Boot + Maven，含 Data JPA / Spring Data Redis 依賴）已建立，`db/01-init.sql` 定義好 `leaderboarddb` / `post` table，`docker-compose.yml` 可用 `docker compose up -d` 啟動 MySQL + Redis 容器（皆 healthy）。`Post` entity 與 `PostRepository` 已建立，`local`/`docker` 兩種 profile 都實測啟動成功，Hibernate `validate` 確認 entity 與 `post` table schema 一致。接下來進入 Phase 3（後端 API 層，含 Redis 整合，本專案重點）。
+
+2026-10-02：Phase 3 進行中。`PostService`/`PostController` 的 MySQL 版本已完成並以 curl 手動測試通過（建立/查詢/按讚/排行榜、400/404 驗證）；讚數同步策略定案為「同步寫入」（細節見 PROMPT.md 資料權責分工）。下一步：Redis 整合。
+
+2026-10-05：Phase 3 完成。Redis 整合（建立貼文 `ZADD`、按讚同步 `ZINCRBY`、排行榜改讀 `ZREVRANGE`、啟動時 zset 為空則從 MySQL rebuild）、`GlobalExceptionHandler`、CORS、Swagger 皆完成，並跑過完整手動測試（含 Redis 停機、容器重建後 rebuild）。測試中發現 Redis 停機時 request 會卡住，已加 Redis timeout 修正。下一步：Phase 4 後端測試。
 
 ## 專案結構（規劃）
 ```
@@ -43,20 +47,22 @@ leaderboard/
 - [x] 設定 `spring.jpa.hibernate.ddl-auto=validate`（Phase 1 已設定，沿用）
 - [x] 驗證資料表對應正確：`docker` profile 實際啟動一次（`mvn spring-boot:run`），`Found 1 JPA repository interface`，Hibernate 初始化無 `SchemaManagementException`，確認 `Post` entity 與既有 `post` table 完全對應
 
-## Phase 3：後端 API 層（含 Redis 整合，本專案重點）
-- [ ] 建立 `PostService`：`getAllPosts` / `getPostById` / `createPost` / `likePost` / `getLeaderboard`
-- [ ] Redis 整合：設定 `RedisTemplate`（或 Lettuce），封裝 Sorted Set 操作（`ZINCRBY`、`ZREVRANGE`、`ZSCORE`）
-- [ ] 建立 `PostController`：
-  - [ ] `GET /api/posts`（查全部貼文）
-  - [ ] `GET /api/posts/{id}`（查單筆）
-  - [ ] `POST /api/posts`（新增貼文）
-  - [ ] `POST /api/posts/{id}/like`（按讚：Redis `ZINCRBY` 遞增 + 同步/非同步更新 MySQL `like_count`）
-  - [ ] `GET /api/posts/leaderboard?limit=10`（讀 Redis Sorted Set 取前 N 名，組合 MySQL 貼文詳情回傳）
-- [ ] 決定並實作「Redis 遺失資料時的還原機制」：例如啟動時若 zset 為空，從 MySQL `like_count` 欄位 rebuild
-- [ ] 加入輸入驗證與統一錯誤處理（比照 Todo List 的 `GlobalExceptionHandler`）
-- [ ] 設定 CORS
-- [ ] 加入 Swagger
-- [ ] 手動測試所有 API 端點（含按讚後排行榜即時更新、重啟 Redis 後 rebuild 是否正確）
+## Phase 3：後端 API 層（含 Redis 整合，本專案重點）（已完成）
+- [x] 建立 `PostService`：`getAllPosts` / `getPostById` / `createPost` / `likePost` / `getLeaderboard`（MySQL 版本完成；按讚方法目前命名為 `updateLike`）
+- [x] Redis 整合：直接用 Spring Boot 自動設定的 `StringRedisTemplate`（不另寫 `RedisConfig`），zset key 為 `post:likes`。Sorted Set 操作目前直接寫在 `PostServiceImpl`，未另外封裝成類別
+- [x] 建立 `PostController`：
+  - [x] `GET /api/posts`（查全部貼文）
+  - [x] `GET /api/posts/{id}`（查單筆，不存在回 404）
+  - [x] `POST /api/posts`（新增貼文，用 `CreatePostRequest` DTO + `@Valid`，回 201）
+  - [x] `POST /api/posts/{id}/like`（按讚，同步寫入：同一 `@Transactional` 內先 `PostRepository.incrementLikeCount`（JPQL `UPDATE ... + 1`，更新 0 筆 → 404），再 Redis `ZINCRBY`；回 204）
+  - [x] `GET /api/posts/leaderboard?limit=10`（`ZREVRANGE` 取前 N 名 id → `findAllById` 一次撈詳情 → 依 Redis 順序重組，Redis 有、MySQL 沒有的 id 略過；`limit` 限制 1～100。同分時 Redis 依 member 字串字典序排，例如 "9" 排在 "10" 前，暫不處理）
+- [x] Redis 遺失資料時的還原機制：`config/LeaderboardInitializer`（`ApplicationRunner`）啟動時 `ZCARD`，為 0 則呼叫 `PostService.rebuildLeaderboard()`，從 MySQL `findAll` 組成 `TypedTuple` 後一次 `ZADD` 寫回。過程中修正過兩個 bug：key 打成 `posts:likes`、判斷條件寫反（`size == null && size == 0`，會 NPE 且永遠 rebuild）。已知限制：只在啟動時檢查，backend 執行中 Redis 資料遺失則排行榜為空，直到重啟（「讀取時補救」列為選配，未做）
+- [x] 輸入驗證與統一錯誤處理：`exception/PostNotFoundException` 取代 Service 裡的 `ResponseStatusException`；`GlobalExceptionHandler` 處理 404（`PostNotFoundException`）、400（`MethodArgumentNotValidException` / `HandlerMethodValidationException` / `MethodArgumentTypeMismatchException`），回應含 `message`。驗證訊息語系跟隨 JVM（目前為中文）。未處理：Redis 不可用時目前回預設 500（可加 503 handler，選配）
+- [x] 設定 CORS：`config/CorsConfig`，`/api/**` 只允許 `http://localhost:5173`、方法只開 `GET`/`POST`；curl 驗證 preflight 200、其他 origin / 未允許方法 403
+- [x] 加入 Swagger：`springdoc-openapi-starter-webmvc-ui` 3.0.3（比照 Todo List），`/swagger-ui.html`、`/v3/api-docs` 正常，`@Min`/`@Max`/`@NotBlank`/`@Size` 有自動反映到文件。錯誤回應（400/404）未出現在文件中，暫不處理
+- [x] 手動測試所有 API 端點：建立/按讚/排行榜即時更新、MySQL 與 Redis 讚數一致、`docker restart` Redis（RDB 快照，資料保留、Lettuce 自動重連）、刪除重建 Redis 容器後重啟 backend 會 rebuild 且與 MySQL 一致
+- [x] 修正：Redis 停機時 request 卡住。Lettuce 斷線時預設會暫存指令、等重連後才送出，加上 Spring Boot 未設定時指令逾時為 60 秒，導致按讚 request 卡住約 34 秒，期間一直佔著 MySQL row lock、Tomcat 執行緒與 DB 連線。已在 `application.yaml` 加 `spring.data.redis.timeout: 2s`、`connect-timeout: 2s`；複測：Redis 停機時按讚/建立貼文/排行榜約 2 秒回 500，MySQL 正確 rollback，Redis 恢復後不會補送逾時的指令
+- [x] 順手設定 `spring.jpa.open-in-view: false`（消除啟動 WARN）
 
 ## Phase 4：後端測試
 - [ ] Repository 層測試（`@DataJpaTest` + H2）
@@ -115,7 +121,10 @@ leaderboard/
 ---
 
 ## 下一步（建議立即執行）
-- [ ] 進入 Phase 3：`PostService`（`likePost` 等）與 Redis `RedisTemplate` 整合，`PostController` API 端點
+- [ ] 進入 Phase 4：後端測試（Repository / Redis 相關 Service 邏輯 / Controller）
+- [ ] （選配）Redis 不可用時回 503、`getLeaderboard` 讀取時補救 rebuild、`application-docker.yaml` 刪除與 base 重複的設定
 
 ## 備註
-- 讚數的權威來源與同步策略（Redis vs MySQL）在 Phase 3 動手實作時需明確定案，並記錄取捨原因。
+- 讚數的權威來源與同步策略：已定案（2026-10-02）MySQL 為 source of truth、同步寫入，取捨記錄於 PROMPT.md。
+- Redis 逾時：未設定 `spring.data.redis.timeout` 時 Lettuce 斷線會暫存指令，request 卡到重連或 60 秒逾時；同步寫入策略下必須設定逾時，Redis 失敗才會快速 rollback（2026-10-05 發現並修正）。
+- 已知小問題：`created_at`/`updated_at` 為 `DATETIME`（秒精度），建立貼文的回應時間含奈秒、之後查詢被進位到秒，兩者不一致。

@@ -8,3 +8,7 @@ spring:
     redis:
       host: localhost
       port: 6379
+      timeout: 2s          # 指令逾時，預設 60s
+      connect-timeout: 2s
+  jpa:
+    open-in-view: false
