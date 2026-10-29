@@ -70,11 +70,11 @@ leaderboard/
 - [x] Controller 層測試（`@WebMvcTest` + MockMvc）：各端點 200/201/204、404、400（驗證失敗、型別錯誤、`limit` 邊界 1/100 與超出範圍 0/-1/101）、`/posts/leaderboard` 不會被當成 `/posts/{id}`、CORS preflight（允許 origin 200、其他 origin / 未允許方法 403）
 - [x] 確認 `mvn test` 全數通過（43 tests，0 failures）。`BackendApplicationTests` 以 `@MockitoBean LeaderboardInitializer` 避免啟動時連 Redis
 
-## Phase 5：前端骨架建立
-- [ ] 用 Vite 建立 frontend/ 專案（React + TypeScript）
-- [ ] 確認 `npm install` / `npm run dev` 可正常啟動
-- [ ] 建立基本目錄結構：`src/api`、`src/components`、`src/hooks`
-- [ ] 設定 `.env` / `.env.example`（`VITE_API_BASE_URL`）
+## Phase 5：前端骨架建立（已完成）
+- [x] 用 Vite 建立 frontend/ 專案（React + TypeScript）：create-vite `react-ts` 範本（Vite 8、React 19、TypeScript 7，lint 用 oxlint）
+- [x] 確認 `npm install` / `npm run dev` 可正常啟動：`npm run build`、`npm run lint` 皆通過，dev server 跑在 `http://localhost:5173`
+- [x] 建立基本目錄結構：`src/api`、`src/components`、`src/hooks`（先放 `.gitkeep`）
+- [x] 設定 `.env` / `.env.example`（`VITE_API_BASE_URL=http://localhost:8080`）：`.env` 已加進 `frontend/.gitignore`；`src/vite-env.d.ts` 宣告 `VITE_API_BASE_URL` 型別。`App.tsx` 暫時改成 `fetch` `/api/posts` 驗證連線，帶 `Origin: http://localhost:5173` 時後端有回 `Access-Control-Allow-Origin`
 
 ## Phase 6：前端 UI 元件
 - [ ] `PostList`：顯示所有貼文（含目前讚數）
