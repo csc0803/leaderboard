@@ -1,0 +1,10 @@
+spring:
+  datasource:
+    url: jdbc:h2:mem:leaderboarddb;MODE=MySQL
+    driver-class-name: org.h2.Driver
+    username: sa
+  jpa:
+    hibernate:
+      ddl-auto: create-drop   # H2 是空的，讓 Hibernate 依 entity 自動建表；main 的 validate 會失敗
+    show-sql: true            # 選配，測試時看得到實際 SQL，方便除錯
+

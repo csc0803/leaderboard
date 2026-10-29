@@ -64,11 +64,11 @@ leaderboard/
 - [x] 修正：Redis 停機時 request 卡住。Lettuce 斷線時預設會暫存指令、等重連後才送出，加上 Spring Boot 未設定時指令逾時為 60 秒，導致按讚 request 卡住約 34 秒，期間一直佔著 MySQL row lock、Tomcat 執行緒與 DB 連線。已在 `application.yaml` 加 `spring.data.redis.timeout: 2s`、`connect-timeout: 2s`；複測：Redis 停機時按讚/建立貼文/排行榜約 2 秒回 500，MySQL 正確 rollback，Redis 恢復後不會補送逾時的指令
 - [x] 順手設定 `spring.jpa.open-in-view: false`（消除啟動 WARN）
 
-## Phase 4：後端測試
-- [ ] Repository 層測試（`@DataJpaTest` + H2）
-- [ ] Redis 相關邏輯測試（視情況用 embedded Redis 或針對 Service 邏輯 mock `RedisTemplate`）
-- [ ] Controller 層測試（`@WebMvcTest` + MockMvc）
-- [ ] 確認 `mvn test` 全數通過
+## Phase 4：後端測試（已完成）
+- [x] Repository 層測試（`@DataJpaTest` + H2，`application-test.yaml` 用 `MODE=MySQL` + `ddl-auto: create-drop`）：`@PrePersist` 預設值、`incrementLikeCount` 回傳筆數/累加/只影響目標貼文
+- [x] Redis 相關邏輯測試：`PostServiceImplTest` 以 Mockito mock `StringRedisTemplate` / `ZSetOperations`，涵蓋按讚不存在時不碰 Redis、排行榜維持 Redis 順序並略過 MySQL 已不存在的 id、rebuild 寫入的 score
+- [x] Controller 層測試（`@WebMvcTest` + MockMvc）：各端點 200/201/204、404、400（驗證失敗、型別錯誤、`limit` 邊界 1/100 與超出範圍 0/-1/101）、`/posts/leaderboard` 不會被當成 `/posts/{id}`、CORS preflight（允許 origin 200、其他 origin / 未允許方法 403）
+- [x] 確認 `mvn test` 全數通過（43 tests，0 failures）。`BackendApplicationTests` 以 `@MockitoBean LeaderboardInitializer` 避免啟動時連 Redis
 
 ## Phase 5：前端骨架建立
 - [ ] 用 Vite 建立 frontend/ 專案（React + TypeScript）
